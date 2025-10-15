@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window x:Class="RadarGraphs.PieChartWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Pie Chart" Height="520" Width="760"
+        Background="#FF1E1E1E"
+        Loaded="Window_Loaded"
+        ResizeMode="NoResize">
+    <Grid x:Name="RootGrid" Margin="8">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="260"/>
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="#FF101010" CornerRadius="6" BorderBrush="#303030" BorderThickness="1">
+            <Grid>
+                <Canvas x:Name="ChartCanvas"/>
+                <TextBlock x:Name="StatusText"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Foreground="#FFB0B0B0" FontSize="16"
+                           Text="No data" IsHitTestVisible="False"/>
+            </Grid>
+        </Border>
+
+        <Border Grid.Column="1" Background="#FF101010" CornerRadius="6" BorderBrush="#303030" BorderThickness="1" Margin="8,0,0,0" Padding="12">
+            <StackPanel>
+                <TextBlock Text="Legend" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
+                <StackPanel x:Name="LegendPanel" />
+                <Separator Margin="0,8,0,8"/>
+                <TextBlock x:Name="TotalText" Foreground="#FFB0B0B0" Margin="0,0,0,8"/>
+                <Button Click="ExportPie_Click" Padding="10,4" HorizontalAlignment="Left">Export Image...</Button>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

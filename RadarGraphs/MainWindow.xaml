@@ -1,0 +1,46 @@
+﻿<Window x:Class="RadarGraphs.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CSV Plotter" Height="640" Width="1000"
+        Background="#FF1E1E1E"
+        Loaded="Window_Loaded"
+        ResizeMode="CanMinimize">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" LastChildFill="False" Margin="8,8,8,4">
+            <StackPanel Orientation="Horizontal">
+                <Button Margin="0,0,8,0" Click="OpenCsv_Click" Padding="10,4">Open CSV…</Button>
+                <Button Margin="0,0,8,0" Click="Clear_Click" Padding="10,4">Clear</Button>
+                <Button Margin="0,0,8,0" Click="FitToData_Click" Padding="10,4">Fit to Data</Button>
+                <Button Margin="0,0,8,0" Click="OpenPie_Click" Padding="10,4">Pie Chart…</Button>
+                <Button Margin="0,0,8,0" Click="ExportPlot_Click" Padding="10,4">Export Image…</Button>
+            </StackPanel>
+        </DockPanel>
+
+        <Border Grid.Row="1" Margin="8" Background="#FF101010" CornerRadius="6" BorderBrush="#303030" BorderThickness="1">
+            <!-- Named root for export and rendering -->
+            <Grid x:Name="PlotRoot">
+                <Canvas x:Name="AxesCanvas" />
+                <Canvas x:Name="DataCanvas" />
+                <TextBlock x:Name="StatusText"
+                           Foreground="#FFB0B0B0"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="16"
+                           Text="Open CSV to plot"
+                           IsHitTestVisible="False"/>
+            </Grid>
+        </Border>
+
+        <StatusBar Grid.Row="2">
+            <StatusBarItem>
+                <TextBlock x:Name="InfoText" Foreground="#FFB0B0B0" Text="Ready"/>
+            </StatusBarItem>
+        </StatusBar>
+    </Grid>
+</Window>
