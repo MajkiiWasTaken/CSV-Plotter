@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -10,7 +10,7 @@ using System.IO;
 using System.Windows.Media.Imaging;
 
 /****************************
- * Made by: Michal Švrèek   *
+ * Made by: Michal ï¿½vrï¿½ek   *
  * Date: 06. 11. 2025       *
  ****************************/
 
@@ -50,8 +50,14 @@ namespace RadarGraphs
 
             StatusText.Visibility = Visibility.Collapsed;
 
-            double w = ChartCanvas.ActualWidth;
-            double h = ChartCanvas.ActualHeight;
+            // Prefer ScrollViewer viewport size when available so we can expand Canvas.Width beyond viewport for scrolling
+            double w = (ChartScrollViewer != null && ChartScrollViewer.ViewportWidth > 0)
+                ? ChartScrollViewer.ViewportWidth
+                : ChartCanvas.ActualWidth;
+            double h = (ChartScrollViewer != null && ChartScrollViewer.ViewportHeight > 0)
+                ? ChartScrollViewer.ViewportHeight
+                : ChartCanvas.ActualHeight;
+
             if (w <= 0 || h <= 0)
             {
                 // fallback to window size
@@ -143,7 +149,7 @@ namespace RadarGraphs
             {
                 var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
                 var sw = new Rectangle { Width = 18, Height = 12, Fill = it.Brush, Stroke = Brushes.Transparent, Margin = new Thickness(0, 2, 8, 0) };
-                var tb = new TextBlock { Text = $"{it.Label} — {it.Count}", Foreground = Brushes.White, FontSize = 12 };
+                var tb = new TextBlock { Text = $"{it.Label} files: {it.Count}", Foreground = Brushes.White, FontSize = 12 };
                 row.Children.Add(sw);
                 row.Children.Add(tb);
                 LegendPanel.Children.Add(row);

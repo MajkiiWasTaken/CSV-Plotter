@@ -17,7 +17,7 @@
                 <Button Margin="0,0,8,0" Click="OpenCsv_Click" Padding="10,4">Open CSV…</Button>
                 <Button Margin="0,0,8,0" Click="Clear_Click" Padding="10,4">Clear</Button>
                 <Button Margin="0,0,8,0" Click="FitToData_Click" Padding="10,4">Fit to Data</Button>
-                <Button Margin="0,0,8,0" Click="OpenPie_Click" Padding="10,4">Pie Chart…</Button>
+                <Button Margin="0,0,8,0" Click="OpenBar_Click" Padding="10,4">Bar Chart…</Button>
                 <Button Margin="0,0,8,0" Click="ExportPlot_Click" Padding="10,4">Export Image…</Button>
             </StackPanel>
         </DockPanel>

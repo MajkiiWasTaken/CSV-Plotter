@@ -14,6 +14,12 @@ using System.Windows.Media.Imaging;
 using System.Windows.Input;
 using System.Windows.Controls.Primitives;
 
+/****************************
+ * Made by: Michal Švrček   *
+ * Date: 09. 10. 2025       *
+ ****************************/
+
+
 namespace RadarGraphs
 {
     public partial class MainWindow : Window
@@ -1344,34 +1350,86 @@ namespace RadarGraphs
         }
 
         // === Pie chart integration ===
-
-        private void OpenPie_Click(object sender, RoutedEventArgs e)
+        private void OpenBar_Click(object? sender, RoutedEventArgs e)
         {
-            if (_series.Count == 0)
+            var ofd = new OpenFileDialog
             {
-                MessageBox.Show(this, "No data loaded.", "Pie Chart", MessageBoxButton.OK, MessageBoxImage.Information);
+                Title = "Open CSV for Bar Chart (files per day)",
+                Filter = "CSV Files (*.csv;*.txt)|*.csv;*.txt|All Files (*.*)|*.*",
+                Multiselect = true
+            };
+            if (ofd.ShowDialog(this) != true) return;
+
+            var counts = new Dictionary<DateTime, int>();
+            foreach (var path in ofd.FileNames)
+            {
+                try
+                {
+                    using var parser = new TextFieldParser(path);
+                    parser.TextFieldType = FieldType.Delimited;
+                    parser.SetDelimiters(",", ";", "\t");
+                    parser.HasFieldsEnclosedInQuotes = true;
+
+                    bool firstRow = true;
+                    int timestampCol = 0;
+                    var datesInThisFile = new HashSet<DateTime>();
+
+                    while (!parser.EndOfData)
+                    {
+                        var fields = parser.ReadFields() ?? Array.Empty<string>();
+                        if (fields.Length == 0) continue;
+                        if (fields.All(f => string.IsNullOrWhiteSpace(f))) continue;
+
+                        if (firstRow)
+                        {
+                            var candidate = fields[0];
+                            if (!TryParseDateTime(candidate, out _))
+                            {
+                                // header row: try to find timestamp-like column name
+                                for (int i = 0; i < fields.Length; i++)
+                                {
+                                    if (!string.IsNullOrEmpty(fields[i]) && fields[i].ToLowerInvariant().Contains("timestamp"))
+                                    {
+                                        timestampCol = i;
+                                        break;
+                                    }
+                                }
+                                firstRow = false;
+                                continue;
+                            }
+                            firstRow = false;
+                        }
+
+                        string? ts = timestampCol < fields.Length ? fields[timestampCol] : null;
+                        if (TryParseDateTime(ts, out var dt))
+                        {
+                            datesInThisFile.Add(dt.Date);
+                        }
+                    }
+
+                    // Each file contributes at most +1 for each date found in it
+                    foreach (var d in datesInThisFile)
+                        counts[d] = counts.TryGetValue(d, out var v) ? v + 1 : 1;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, $"Failed to read '{path}': {ex.Message}", "Bar Chart", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+
+            if (counts.Count == 0)
+            {
+                MessageBox.Show(this, "No timestamps detected in selected files.", "Bar Chart", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            var items = new List<(string Name, double Value, Brush Brush)>();
-            for (int i = 0; i < _series.Count; i++)
-            {
-                var s = _series[i];
-                double val = AggregateAreaAbs(s.Points);
-                if (!double.IsFinite(val) || val <= 0) continue;
+            // Build items sorted by date ascending and assign palette brushes
+            var items = counts.OrderBy(kv => kv.Key)
+                .Select((kv, idx) => (Label: kv.Key.ToString("yyyy-MM-dd"), Date: kv.Key, Count: kv.Value, Brush: _palette[idx % _palette.Count]))
+                .ToList();
 
-                var brush = _palette[i % _palette.Count];
-                items.Add((s.Name, val, brush));
-            }
-
-            if (items.Count == 0)
-            {
-                MessageBox.Show(this, "Data did not produce any positive slice values.", "Pie Chart",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var win = new PieChartWindow(items) { Owner = this };
+            int totalFiles = ofd.FileNames.Length;
+            var win = new BarChartWindow(items, totalFiles) { Owner = this };
             win.Show();
         }
 

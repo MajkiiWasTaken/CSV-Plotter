@@ -13,7 +13,13 @@
 
         <Border Background="#FF101010" CornerRadius="6" BorderBrush="#303030" BorderThickness="1" Padding="8" Grid.Row="0">
             <Grid>
-                <Canvas x:Name="ChartCanvas" />
+                <ScrollViewer x:Name="ChartScrollViewer"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled"
+                              CanContentScroll="False">
+                    <Canvas x:Name="ChartCanvas" />
+                </ScrollViewer>
+
                 <StackPanel x:Name="LegendPanel" Orientation="Vertical" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"/>
                 <TextBlock x:Name="StatusText" Foreground="#FFB0B0B0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="16" Text="No data" Visibility="Collapsed"/>
             </Grid>
