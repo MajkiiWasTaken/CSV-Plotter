@@ -62,10 +62,16 @@ namespace RadarGraphs
         // Snap settings
         private const double SnapPixelRadius = 10.0; // how close (in px) the mouse must be to snap to a peak
 
+        // Paging (show only 5 series at a time; navigate with Left/Right arrows)
+        private const int PageSize = 5;
+        private int _pageIndex = 0;
+        private int TotalPages => _series.Count == 0 ? 1 : (int)Math.Ceiling((double)_series.Count / PageSize);
+
         public MainWindow()
         {
             InitializeComponent();
             SizeChanged += (_, __) => Redraw();
+            PreviewKeyDown += OnPreviewKeyDown; // arrow key paging
         }
         private void Window_Loaded(object? sender, RoutedEventArgs e)
         {
@@ -75,6 +81,11 @@ namespace RadarGraphs
                 PlotRoot.MouseMove += PlotRoot_MouseMove;
                 PlotRoot.MouseLeave += PlotRoot_MouseLeave;
             }
+
+            // Ensure window gets key events
+            Focus();
+            Keyboard.Focus(this);
+
             Redraw();
         }
 
@@ -104,12 +115,13 @@ namespace RadarGraphs
                 }
 
                 _hasData = _series.Count > 0;
-                FitToData();
+                _pageIndex = 0; // reset paging on new load
+                FitToData();    // fit to the first visible page
                 Redraw();
                 int delta = _series.Count - before;
                 StatusText.Text = _hasData ? "" : "Open CSV to plot";
                 InfoText.Text = _hasData
-                    ? $"Total series: {_series.Count} (added {delta})"
+                    ? $"Total series: {_series.Count} (added {delta}) • Page {_pageIndex + 1}/{TotalPages}"
                     : "Ready";
             }
         }
@@ -124,6 +136,8 @@ namespace RadarGraphs
             _minX = 0; _maxX = 1; _minY = 0; _maxY = 1;
             _xAxisTitle = "X";
             _yAxisTitle = "Y";
+            _pageIndex = 0;
+
             StatusText.Text = "Open CSV to plot";
             InfoText.Text = "Cleared";
             Redraw();
@@ -536,6 +550,46 @@ namespace RadarGraphs
             DataCanvas.Children.Add(_hoverDot);
         }
 
+        private IEnumerable<(Series S, int Index)> GetVisibleSeriesWithIndices()
+        {
+            if (_series.Count == 0) yield break;
+            int start = Math.Clamp(_pageIndex * PageSize, 0, Math.Max(0, _series.Count - 1));
+            int count = Math.Min(PageSize, _series.Count - start);
+            for (int i = 0; i < count; i++)
+            {
+                int gi = start + i;
+                yield return (_series[gi], gi);
+            }
+        }
+
+        private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (!_hasData) return;
+
+            if (e.Key == Key.Right)
+            {
+                if ((_pageIndex + 1) * PageSize < _series.Count)
+                {
+                    _pageIndex++;
+                    FitToData(); // fit to currently visible page
+                    Redraw();
+                    InfoText.Text = $"Page {_pageIndex + 1}/{TotalPages}";
+                }
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Left)
+            {
+                if (_pageIndex > 0)
+                {
+                    _pageIndex--;
+                    FitToData(); // fit to currently visible page
+                    Redraw();
+                    InfoText.Text = $"Page {_pageIndex + 1}/{TotalPages}";
+                }
+                e.Handled = true;
+            }
+        }
+
         private void PlotRoot_MouseMove(object sender, MouseEventArgs e)
         {
             if (!_hasData) { HideHover(); return; }
@@ -557,31 +611,34 @@ namespace RadarGraphs
                 return;
             }
 
+            var visible = GetVisibleSeriesWithIndices().ToList();
+            if (visible.Count == 0) { HideHover(); return; }
+
             // Compute data-space X at mouse
             double xUnderMouse = InvMapX(posAxes.X, plotRect, _minX, _maxX);
 
-            // Try snap-to-peak
-            bool snapped = TryGetSnapPeak(xUnderMouse, plotRect, out var snapSeries, out var snapPoint);
+            // Try snap-to-peak within visible series
+            bool snapped = TryGetSnapPeak(xUnderMouse, plotRect, visible.Select(v => v.S), out var snapSeries, out var snapPoint);
 
             // Use snapped X if available, otherwise free hover X
             double xForQuery = snapped ? snapPoint.X : xUnderMouse;
 
-            // Build info text with interpolated Y for all series
+            // Build info text with interpolated Y for all visible series
             var lines = new List<string>
             {
                 snapped ? $"{_xAxisTitle}: {xForQuery:G6}  (snap)" : $"{_xAxisTitle}: {xForQuery:G6}"
             };
 
-            foreach (var s in _series)
+            foreach (var (S, Index) in visible)
             {
-                if (TryInterpolateYAtX(GetSortedPoints(s), xForQuery, out double y))
+                if (TryInterpolateYAtX(GetSortedPoints(S), xForQuery, out double y))
                 {
-                    string prefix = snapped && s == snapSeries ? "★ " : "";
-                    lines.Add($"{prefix}{s.Name}: {y:G6}");
+                    string prefix = snapped && S == snapSeries ? "★ " : "";
+                    lines.Add($"{prefix}{S.Name}: {y:G6}");
                 }
                 else
                 {
-                    lines.Add($"{s.Name}: (n/a)");
+                    lines.Add($"{S.Name}: (n/a)");
                 }
             }
 
@@ -617,9 +674,9 @@ namespace RadarGraphs
                     double px = MapX(snapPoint.X, plotRect, _minX, _maxX);
                     double py = MapY(snapPoint.Y, plotRect, _minY, _maxY);
 
-                    // Colorize marker with snapped series color
-                    int idx = _series.IndexOf(snapSeries!);
-                    var col = idx >= 0 ? _palette[idx % _palette.Count] : Brushes.White;
+                    // Colorize marker with snapped series color (stable via global index)
+                    int gi = _series.IndexOf(snapSeries!);
+                    var col = gi >= 0 ? _palette[gi % _palette.Count] : Brushes.White;
                     _hoverDot.Fill = col;
 
                     Canvas.SetLeft(_hoverDot, px - _hoverDot.Width / 2);
@@ -799,13 +856,15 @@ namespace RadarGraphs
 
         private void FitToData()
         {
-            if (_series.Count == 0)
+            // Fit axes to the CURRENTLY VISIBLE page only
+            var candidates = GetVisibleSeriesWithIndices().Select(v => v.S).ToList();
+            if (candidates.Count == 0)
                 return;
 
             double minX = double.PositiveInfinity, minY = double.PositiveInfinity;
             double maxX = double.NegativeInfinity, maxY = double.NegativeInfinity;
 
-            foreach (var s in _series)
+            foreach (var s in candidates)
             {
                 foreach (var p in s.Points)
                 {
@@ -862,8 +921,10 @@ namespace RadarGraphs
             DataCanvas.Clip = new RectangleGeometry(plotRect);
 
             DrawAxesAndGrid(AxesCanvas, plotRect, _minX, _maxX, _minY, _maxY);
-            DrawSeries(DataCanvas, plotRect);
-            DrawLegend(AxesCanvas, plotRect);
+
+            var visible = GetVisibleSeriesWithIndices().ToList();
+            DrawSeries(DataCanvas, plotRect, visible);
+            DrawLegend(AxesCanvas, plotRect, visible);
 
             // Ensure hover UI remains on top after redraw
             _hoverLine = null;
@@ -983,21 +1044,22 @@ namespace RadarGraphs
             return indices;
         }
 
-        private bool TryGetSnapPeak(double x, Rect plotRect, out Series? bestSeries, out Point bestPoint)
+        private bool TryGetSnapPeak(double x, Rect plotRect, IEnumerable<Series> candidates, out Series? bestSeries, out Point bestPoint)
         {
             bestSeries = null;
             bestPoint = new Point(double.NaN, double.NaN);
-            if (_series.Count == 0) return false;
+
+            var candidateList = candidates?.ToList() ?? new List<Series>();
+            if (candidateList.Count == 0) return false;
 
             double dxTol = Math.Abs(SnapPixelRadius / Math.Max(1e-12, plotRect.Width)) * (_maxX - _minX);
 
-            // Use locals that the local function can capture safely
             Series? bestSeriesLocal = null;
             Point bestPointLocal = new Point(double.NaN, double.NaN);
             double bestY = double.NegativeInfinity;
             double bestDx = double.PositiveInfinity;
 
-            foreach (var s in _series)
+            foreach (var s in candidateList)
             {
                 var pts = GetSortedPoints(s);
                 if (pts.Count == 0) continue;
@@ -1173,12 +1235,13 @@ namespace RadarGraphs
             canvas.Children.Add(yTitle);
         }
 
-        private void DrawSeries(Canvas canvas, Rect plotRect)
+        private void DrawSeries(Canvas canvas, Rect plotRect, List<(Series S, int Index)> visible)
         {
-            for (int i = 0; i < _series.Count; i++)
+            for (int i = 0; i < visible.Count; i++)
             {
-                var s = _series[i];
-                var color = _palette[i % _palette.Count];
+                var (s, globalIndex) = visible[i];
+                var color = _palette[globalIndex % _palette.Count];
+
                 var geom = new StreamGeometry { FillRule = FillRule.Nonzero };
                 using (var ctx = geom.Open())
                 {
@@ -1211,18 +1274,18 @@ namespace RadarGraphs
             }
         }
 
-        private void DrawLegend(Canvas canvas, Rect plotRect)
+        private void DrawLegend(Canvas canvas, Rect plotRect, List<(Series S, int Index)> visible)
         {
-            if (_series.Count == 0) return;
+            if (visible.Count == 0) return;
 
             double padding = 8;
             double swatch = 18;
             double spacing = 4;
 
-            var entries = _series.Select((s, i) => new
+            var entries = visible.Select(v => new
             {
-                Text = s.Name,
-                Brush = _palette[i % _palette.Count]
+                Text = v.S.Name,
+                Brush = _palette[v.Index % _palette.Count]
             }).ToList();
 
             double maxWidth = 0;
