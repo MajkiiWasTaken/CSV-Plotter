@@ -1,18 +1,19 @@
-﻿using System;
+﻿using Microsoft.VisualBasic.FileIO;
+using Microsoft.Win32;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Shapes;
-using Microsoft.Win32;
-using Microsoft.VisualBasic.FileIO;
-using System.IO;
-using System.Text.RegularExpressions;
-using System.Windows.Media.Imaging;
-using System.Windows.Input;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using System.Xml.Linq;
 
 /****************************
  * Made by: Michal Švrček   *
@@ -39,12 +40,11 @@ namespace RadarGraphs
         private const double BottomMargin = 60;
 
         // Data bounds
-        private double _minX = 0, _maxX = 1, _minY = 0, _maxY = 1;
-        private bool _hasData = false;
+        private double _minX = 0, _maxX = 1, _minY = 30, _maxY = 100; private bool _hasData = false;
 
         // Axis titles (auto-detected)
         private string _xAxisTitle = "X";
-        private string _yAxisTitle = "Y";
+        private string _yAxisTitle = "Distance [cm]";
 
         // Hover UI
         private Popup? _hoverPopup;
@@ -67,22 +67,27 @@ namespace RadarGraphs
         private int _pageIndex = 0;
         private int TotalPages => _series.Count == 0 ? 1 : (int)Math.Ceiling((double)_series.Count / PageSize);
 
+
+
         public MainWindow()
         {
             InitializeComponent();
             SizeChanged += (_, __) => Redraw();
             PreviewKeyDown += OnPreviewKeyDown; // arrow key paging
         }
+
         private void Window_Loaded(object? sender, RoutedEventArgs e)
         {
-            // Hook to the root visual to capture mouse moves anywhere over the plot
             if (PlotRoot != null)
             {
                 PlotRoot.MouseMove += PlotRoot_MouseMove;
                 PlotRoot.MouseLeave += PlotRoot_MouseLeave;
             }
 
-            // Ensure window gets key events
+            // Initialize Y range boxes only
+            FromYText.Text = _minY.ToString("G6", CultureInfo.CurrentCulture);
+            ToYText.Text = _maxY.ToString("G6", CultureInfo.CurrentCulture);
+
             Focus();
             Keyboard.Focus(this);
 
@@ -115,8 +120,13 @@ namespace RadarGraphs
                 }
 
                 _hasData = _series.Count > 0;
-                _pageIndex = 0; // reset paging on new load
-                FitToData();    // fit to the first visible page
+                _pageIndex = 0;
+                FitToData(); // fits X to current page; Y stays 30–100
+
+                // Reflect Y range
+                FromYText.Text = _minY.ToString("G6", CultureInfo.CurrentCulture);
+                ToYText.Text = _maxY.ToString("G6", CultureInfo.CurrentCulture);
+
                 Redraw();
                 int delta = _series.Count - before;
                 StatusText.Text = _hasData ? "" : "Open CSV to plot";
@@ -133,22 +143,28 @@ namespace RadarGraphs
             _peakIndexCache.Clear();
 
             _hasData = false;
-            _minX = 0; _maxX = 1; _minY = 0; _maxY = 1;
+            _minX = 0; _maxX = 1; _minY = 30; _maxY = 100;
             _xAxisTitle = "X";
-            _yAxisTitle = "Y";
+            _yAxisTitle = "Distance [cm]";
             _pageIndex = 0;
 
             StatusText.Text = "Open CSV to plot";
             InfoText.Text = "Cleared";
+            FromYText.Text = _minY.ToString("G6", CultureInfo.CurrentCulture);
+            ToYText.Text = _maxY.ToString("G6", CultureInfo.CurrentCulture);
             Redraw();
         }
 
         private void FitToData_Click(object sender, RoutedEventArgs e)
         {
             FitToData();
+            // Y stays fixed; reflect in text boxes
+            FromYText.Text = _minY.ToString("G6", CultureInfo.CurrentCulture);
+            ToYText.Text = _maxY.ToString("G6", CultureInfo.CurrentCulture);
             Redraw();
         }
 
+        // Replace the entire LoadCsv method with this version
         private int LoadCsv(string path)
         {
             using var parser = new TextFieldParser(path);
@@ -162,6 +178,7 @@ namespace RadarGraphs
                 var fields = parser.ReadFields() ?? Array.Empty<string>();
                 if (fields.Length == 0) continue;
                 if (fields.All(f => string.IsNullOrWhiteSpace(f))) continue;
+                if (IsHashDirectiveRow(fields)) continue; // NEW: ignore #PRE_BEGIN/#PRE_END/#LIVE_BEGIN/#LIVE_END lines
                 rows.Add(fields);
             }
 
@@ -182,18 +199,19 @@ namespace RadarGraphs
 
             // Fallback axis titles
             if (_xAxisTitle == "X") _xAxisTitle = "Sample";
-            if (_yAxisTitle == "Y") _yAxisTitle = "Value";
+            // Always use Distance [cm] for Y
+            _yAxisTitle = "Distance [cm]";
             return generic.Count;
         }
 
         private void MergeAxisTitles(string xTitle, string yTitle)
         {
-            // If first time, adopt; if later and mismatch, keep a generic title
+            // X: adopt or normalize to Time [s]
             if (_xAxisTitle == "X") _xAxisTitle = xTitle;
             else if (!xTitle.Equals(_xAxisTitle, StringComparison.OrdinalIgnoreCase)) _xAxisTitle = "Time [s]";
 
-            if (_yAxisTitle == "Y") _yAxisTitle = yTitle;
-            else if (!yTitle.Equals(_yAxisTitle, StringComparison.OrdinalIgnoreCase)) _yAxisTitle = "Value";
+            // Y: force Distance [cm]
+            _yAxisTitle = "Distance [cm]";
         }
 
         // Header-driven mapping
@@ -202,7 +220,7 @@ namespace RadarGraphs
         {
             series = new();
             xTitle = "Time [s]";
-            yTitle = "Value";
+            yTitle = "Distance [cm]";
 
             // Detect header row (first row non-numeric)
             int dataStart = 0;
@@ -218,7 +236,7 @@ namespace RadarGraphs
             {
                 return false; // without headers stick to generic logic
             }
-
+            
             // Map columns
             var map = DetectSchema(headers);
             if (map.XIndex is null)
@@ -275,20 +293,21 @@ namespace RadarGraphs
             if (finalYIndices.Count == 0)
                 return false;
 
-            // Axis Y title
-            if (radarY.Count > 0)
-                yTitle = "Voltage/ADC";
-            else
-                yTitle = BestYTitle(headers, finalYIndices).Title;
+            // Y title fixed
+            yTitle = "Distance [cm]";
 
             // Build series for each Y
             foreach (var yi in finalYIndices)
             {
                 var ys = columns[yi];
-                var pts = MakePairedPoints(xs, ys);
+                string yHeader = yi < headers.Length ? headers[yi] : $"Y{yi}";
+
+                bool isVoltage = IsVoltageHeader(yHeader) || IsRadarVoltageHeader(yHeader);
+                Func<double, double>? transform = isVoltage ? VoltageToDistanceCm : null;
+
+                var pts = MakePairedPoints(xs, ys, transform);
                 if (pts.Count == 0) continue;
 
-                string yHeader = yi < headers.Length ? headers[yi] : $"Y{yi}";
                 string name = $"{baseName} - {CleanHeaderForLegend(yHeader)}";
                 series.Add(new Series { Name = name, Points = pts });
             }
@@ -366,6 +385,9 @@ namespace RadarGraphs
         private static bool IsRadarVoltageHeader(string h) => Like(h, "radar voltage", "radar_voltage");
         private static bool IsRadarAdcHeader(string h) => Like(h, "radar adc", "radar_adc");
 
+        private static bool IsVoltageHeader(string h) => Like(h, "voltage", "volt", "v", "analog", "analog in", "analog input", "ai");
+        private static double VoltageToDistanceCm(double v) => 100.0 - 7.0 * v;
+
         private sealed class SchemaMap
         {
             public int? XIndex;
@@ -440,7 +462,6 @@ namespace RadarGraphs
                     map.TimeScaleToSeconds = scale;
 
                     // Axis title
-                    string timeUnit = scale == 1.0 ? "s" : (Math.Abs(scale - 1.0 / 1000.0) < 1e-12 ? "s" : "s");
                     map.XTitle = "Time [s]"; // normalize to seconds
                     break;
                 }
@@ -571,7 +592,7 @@ namespace RadarGraphs
                 if ((_pageIndex + 1) * PageSize < _series.Count)
                 {
                     _pageIndex++;
-                    FitToData(); // fit to currently visible page
+                    FitToData();
                     Redraw();
                     InfoText.Text = $"Page {_pageIndex + 1}/{TotalPages}";
                 }
@@ -582,7 +603,7 @@ namespace RadarGraphs
                 if (_pageIndex > 0)
                 {
                     _pageIndex--;
-                    FitToData(); // fit to currently visible page
+                    FitToData(); 
                     Redraw();
                     InfoText.Text = $"Page {_pageIndex + 1}/{TotalPages}";
                 }
@@ -634,7 +655,7 @@ namespace RadarGraphs
                 if (TryInterpolateYAtX(GetSortedPoints(S), xForQuery, out double y))
                 {
                     string prefix = snapped && S == snapSeries ? "★ " : "";
-                    lines.Add($"{prefix}{S.Name}: {y:G6}");
+                    lines.Add($"{prefix}{S.Name}: {y:G6} cm");
                 }
                 else
                 {
@@ -692,6 +713,21 @@ namespace RadarGraphs
 
         private void PlotRoot_MouseLeave(object sender, MouseEventArgs e) => HideHover();
 
+        // Add this helper method anywhere inside the MainWindow class
+        private static bool IsHashDirectiveRow(string[] fields)
+        {
+            if (fields == null || fields.Length == 0) return false;
+
+            // If the first non-empty token starts with '#', treat the whole line as a directive/comment
+            foreach (var f in fields)
+            {
+                if (string.IsNullOrWhiteSpace(f)) continue;
+                var trimmed = f.TrimStart();
+                return trimmed.Length > 0 && trimmed[0] == '#';
+            }
+            return false;
+        }
+
         private void HideHover()
         {
             if (_hoverPopup != null) _hoverPopup.IsOpen = false;
@@ -701,27 +737,8 @@ namespace RadarGraphs
 
         private static (string Title, string? Unit) BestYTitle(string[] headers, List<int> yIndices)
         {
-            string? chosenName = null;
-            string? unit = null;
-
-            foreach (var yi in yIndices)
-            {
-                if (yi >= headers.Length) continue;
-                var (baseName, u) = SplitHeaderUnit(headers[yi]);
-                if (chosenName == null) chosenName = baseName.Trim();
-                if (unit == null && u != null) unit = u;
-                // If this header clearly states voltage, prefer that
-                if (Like(baseName, "voltage", "volt", "v", "analog"))
-                {
-                    chosenName = "Voltage";
-                    if (u == null) unit ??= "V";
-                    break;
-                }
-            }
-
-            if (string.IsNullOrWhiteSpace(chosenName)) chosenName = "Value";
-            string title = unit != null ? $"{chosenName} [{unit}]" : chosenName;
-            return (title, unit);
+            // Force Distance [cm]
+            return ("Distance [cm]", "cm");
         }
 
         private List<Series> BuildSeriesFromRows(List<string[]> rows, string baseName)
@@ -793,9 +810,16 @@ namespace RadarGraphs
             }
 
             int added = 0;
-            foreach (int c in yIndices)
+            for (int c = 1; c < maxCols; c++)
             {
-                var pts = MakePairedPoints(xs, columns[c]);
+                if (!yIndices.Contains(c)) continue;
+                var ys = columns[c];
+                string header = (startRow == 1 && c < headers.Length) ? headers[c] : $"Y{c}";
+
+                bool isVoltage = IsVoltageHeader(header) || IsRadarVoltageHeader(header);
+                Func<double, double>? transform = isVoltage ? VoltageToDistanceCm : null;
+
+                var pts = MakePairedPoints(xs, ys, transform);
                 if (pts.Count == 0) continue;
 
                 string name = baseName;
@@ -808,24 +832,20 @@ namespace RadarGraphs
                 added++;
             }
 
-            if (_yAxisTitle == "Y")
-                _yAxisTitle = (startRow == 1 && yIndices.Count > 0 &&
-                              yIndices.Select(i => i < headers.Length ? headers[i] : "Value")
-                                      .Any(h => IsRadarVoltageHeader(h) || IsRadarAdcHeader(h)))
-                    ? "Voltage/ADC"
-                    : "Value";
-
+            _yAxisTitle = "Distance [cm]";
             return result;
         }
 
-        private static List<Point> MakePairedPoints(List<double> xs, List<double> ys)
+        private static List<Point> MakePairedPoints(List<double> xs, List<double> ys, Func<double, double>? yTransform = null)
         {
             int n = Math.Min(xs.Count, ys.Count);
             var pts = new List<Point>(n);
             for (int i = 0; i < n; i++)
             {
-                double x = xs[i], y = ys[i];
-                if (double.IsNaN(x) || double.IsNaN(y) || double.IsInfinity(x) || double.IsInfinity(y)) continue;
+                double x = xs[i];
+                double yRaw = ys[i];
+                if (double.IsNaN(x) || double.IsNaN(yRaw) || double.IsInfinity(x) || double.IsInfinity(yRaw)) continue;
+                double y = yTransform != null ? yTransform(yRaw) : yRaw;
                 pts.Add(new Point(x, y));
             }
             return pts;
@@ -856,38 +876,37 @@ namespace RadarGraphs
 
         private void FitToData()
         {
-            // Fit axes to the CURRENTLY VISIBLE page only
+            // Fit X axes to the CURRENTLY VISIBLE page only, keep Y fixed to 30–100
             var candidates = GetVisibleSeriesWithIndices().Select(v => v.S).ToList();
             if (candidates.Count == 0)
                 return;
 
-            double minX = double.PositiveInfinity, minY = double.PositiveInfinity;
-            double maxX = double.NegativeInfinity, maxY = double.NegativeInfinity;
+            double minX = double.PositiveInfinity;
+            double maxX = double.NegativeInfinity;
 
             foreach (var s in candidates)
             {
                 foreach (var p in s.Points)
                 {
-                    if (double.IsNaN(p.X) || double.IsNaN(p.Y)) continue;
+                    if (double.IsNaN(p.X)) continue;
                     if (p.X < minX) minX = p.X;
                     if (p.X > maxX) maxX = p.X;
-                    if (p.Y < minY) minY = p.Y;
-                    if (p.Y > maxY) maxY = p.Y;
                 }
             }
 
-            if (!double.IsFinite(minX) || !double.IsFinite(maxX) ||
-                !double.IsFinite(minY) || !double.IsFinite(maxY))
+            if (!double.IsFinite(minX) || !double.IsFinite(maxX))
                 return;
 
-            // Expand bounds by 5%
+            // Expand bounds by 5% (X only)
             ExpandBounds(ref minX, ref maxX);
-            ExpandBounds(ref minY, ref maxY);
-
             if (AlmostEqual(maxX, minX)) { minX -= 0.5; maxX += 0.5; }
-            if (AlmostEqual(maxY, minY)) { minY -= 0.5; maxY += 0.5; }
 
-            _minX = minX; _maxX = maxX; _minY = minY; _maxY = maxY;
+            _minX = minX; _maxX = maxX;
+
+            // Fixed Y range and title
+            _minY = 30;
+            _maxY = 100;
+            _yAxisTitle = "Distance [cm]";
         }
 
         private static void ExpandBounds(ref double min, ref double max)
@@ -932,6 +951,7 @@ namespace RadarGraphs
             _hoverDot = null;
             EnsureHoverUI();
         }
+
 
         private static Rect GetPlotRect(double canvasWidth, double canvasHeight)
         {
@@ -1235,6 +1255,54 @@ namespace RadarGraphs
             canvas.Children.Add(yTitle);
         }
 
+        private void ApplyYRange_Click(object? sender, RoutedEventArgs e)
+        {
+            ApplyYRange();
+        }
+
+        private void RangeYText_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                ApplyYRange();
+                e.Handled = true;
+            }
+        }
+
+        private void ApplyYRange()
+        {
+            if (!_hasData)
+            {
+                InfoText.Text = "No data loaded.";
+                return;
+            }
+
+            if (!TryParseDouble(FromYText.Text, out var fromY) || !double.IsFinite(fromY))
+            {
+                MessageBox.Show(this, "Invalid Y 'From' value.", "Range", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (!TryParseDouble(ToYText.Text, out var toY) || !double.IsFinite(toY))
+            {
+                MessageBox.Show(this, "Invalid Y 'To' value.", "Range", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            
+
+            if (toY < fromY)
+                (fromY, toY) = (toY, fromY);
+            if (AlmostEqual(fromY, toY))
+                ExpandBounds(ref fromY, ref toY); // add small padding
+
+            _minY = fromY;
+            _maxY = toY;
+
+            _yAxisTitle = "Distance [cm]";
+            Redraw();
+            InfoText.Text = $"Y range applied: [{_minY:G6}, {_maxY:G6}]";
+        }
+
+
         private void DrawSeries(Canvas canvas, Rect plotRect, List<(Series S, int Index)> visible)
         {
             for (int i = 0; i < visible.Count; i++)
@@ -1246,11 +1314,22 @@ namespace RadarGraphs
                 using (var ctx = geom.Open())
                 {
                     bool started = false;
+
+                    // Render only segments within current X range, breaking at gaps
+                    Point? lastPlotted = null;
                     foreach (var p in s.Points)
                     {
+                        if (p.X < _minX || p.X > _maxX)
+                        {
+                            lastPlotted = null; // break the figure outside range
+                            started = false;
+                            continue;
+                        }
+
                         double px = MapX(p.X, plotRect, _minX, _maxX);
                         double py = MapY(p.Y, plotRect, _minY, _maxY);
-                        if (!started)
+
+                        if (!started || lastPlotted == null)
                         {
                             ctx.BeginFigure(new Point(px, py), isFilled: false, isClosed: false);
                             started = true;
@@ -1259,6 +1338,8 @@ namespace RadarGraphs
                         {
                             ctx.LineTo(new Point(px, py), isStroked: true, isSmoothJoin: false);
                         }
+
+                        lastPlotted = p;
                     }
                 }
                 geom.Freeze();
@@ -1413,6 +1494,7 @@ namespace RadarGraphs
         }
 
         // === Pie chart integration ===
+        // Replace the entire OpenBar_Click method with this version
         private void OpenBar_Click(object? sender, RoutedEventArgs e)
         {
             var ofd = new OpenFileDialog
@@ -1442,6 +1524,7 @@ namespace RadarGraphs
                         var fields = parser.ReadFields() ?? Array.Empty<string>();
                         if (fields.Length == 0) continue;
                         if (fields.All(f => string.IsNullOrWhiteSpace(f))) continue;
+                        if (IsHashDirectiveRow(fields)) continue; // NEW: ignore #... directive lines
 
                         if (firstRow)
                         {

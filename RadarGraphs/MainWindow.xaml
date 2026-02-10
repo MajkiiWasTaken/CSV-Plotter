@@ -20,10 +20,22 @@
                 <Button Margin="0,0,8,0" Click="OpenBar_Click" Padding="10,4">Bar Chart…</Button>
                 <Button Margin="0,0,8,0" Click="ExportPlot_Click" Padding="10,4">Export Image…</Button>
             </StackPanel>
+
+            <!-- Y range controls ONLY -->
+            <StackPanel Orientation="Horizontal" Margin="16,0,0,0">
+                <TextBlock Text="Y From:" Foreground="#FFB0B0B0" VerticalAlignment="Center" Margin="16,0,6,0"/>
+                <TextBox x:Name="FromYText" Width="90" Padding="6,2" Margin="0,0,8,0"
+                         VerticalContentAlignment="Center"
+                         KeyDown="RangeYText_KeyDown"/>
+                <TextBlock Text="To:" Foreground="#FFB0B0B0" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBox x:Name="ToYText" Width="90" Padding="6,2" Margin="0,0,8,0"
+                         VerticalContentAlignment="Center"
+                         KeyDown="RangeYText_KeyDown"/>
+                <Button Margin="0,0,8,0" Padding="10,4" Click="ApplyYRange_Click">Apply</Button>
+            </StackPanel>
         </DockPanel>
 
         <Border Grid.Row="1" Margin="8" Background="#FF101010" CornerRadius="6" BorderBrush="#303030" BorderThickness="1">
-            <!-- Named root for export and rendering -->
             <Grid x:Name="PlotRoot">
                 <Canvas x:Name="AxesCanvas" />
                 <Canvas x:Name="DataCanvas" />
