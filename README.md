@@ -4,7 +4,7 @@
 ![Framework](https://img.shields.io/badge/.NET-8.0-purple)
 ![UI](https://img.shields.io/badge/UI-WPF-512BD4)
 ![Language](https://img.shields.io/badge/language-C%23-239120)
-![Status](https://img.shields.io/badge/status-Development-orange)
+![Status]([https://img.shields.io/badge/status-Development-orange](https://img.shields.io/badge/status-Prototype%20%2F%20Internal-orange))
 
 ---
 
@@ -117,4 +117,4 @@ The project is designed as a lightweight visualization tool and a foundation for
 
 ##  Author: Michal Švrček
 
-Developed as part of data visualization project for our radars.
+Developed as part of data visualization and testing for our radars.
