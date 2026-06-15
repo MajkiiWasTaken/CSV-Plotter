@@ -106,7 +106,7 @@ This project is suitable for:
 - building simple data visualization tools,
 - experimenting with custom chart implementations,
 - extending into more advanced graphing systems.
-
+ 
 ---
 
 ##  Notes
