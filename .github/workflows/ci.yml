@@ -18,7 +18,7 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restore
-        run: dotnet restore V2XController.sln
+        run: dotnet restore RadarGraphs.sln
 
       - name: Build
-        run: dotnet build V2XController.sln --no-restore --configuration Release
+        run: dotnet build RadarGraphs.sln --no-restore --configuration Release
