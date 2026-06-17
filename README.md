@@ -6,9 +6,7 @@
 ![Language](https://img.shields.io/badge/language-C%23-239120)
 ![Status](https://img.shields.io/badge/status-Release-orange)
 
----
-
-##  Overview
+###  Overview
 
 **RadarGraphs** is a WPF desktop application built in **C# (.NET 8)** for visualizing data using different chart types such as **bar charts** and **pie charts**.
 
@@ -16,7 +14,7 @@ The project focuses on simple and interactive data visualization in a desktop en
 
 ---
 
-##  Features
+###  Features
 
 ###  Chart Visualization
 - **Bar chart rendering**
@@ -40,7 +38,7 @@ The project focuses on simple and interactive data visualization in a desktop en
 
 ---
 
-##  How It Works
+###  How It Works
 
 The application is structured around multiple windows, each responsible for rendering a specific type of chart.
 
@@ -62,7 +60,7 @@ The application is structured around multiple windows, each responsible for rend
 
 ---
 
-##  Data Flow
+###  Data Flow
 
 1. Application starts in `MainWindow`  
 2. User opens a specific chart window (bar or pie)  
@@ -72,7 +70,7 @@ The application is structured around multiple windows, each responsible for rend
 
 ---
 
-##  Requirements
+###  Requirements
 
 - Windows  
 - .NET 8 SDK  
@@ -80,7 +78,7 @@ The application is structured around multiple windows, each responsible for rend
 
 ---
 
-##  Getting Started
+###  Getting Started
 
 1. Clone the repository  
 2. Open the project in Visual Studio  
@@ -89,7 +87,7 @@ The application is structured around multiple windows, each responsible for rend
 
 ---
 
-##  Technologies Used
+###  Technologies Used
 
 - **C#**
 - **WPF (Windows Presentation Foundation)**
@@ -98,7 +96,7 @@ The application is structured around multiple windows, each responsible for rend
 
 ---
 
-##  Use Case
+###  Use Case
 
 This project is suitable for:
 
@@ -109,7 +107,7 @@ This project is suitable for:
  
 ---
 
-##  Notes
+###  Notes
 
 The project is designed as a lightweight visualization tool and a foundation for further development of custom chart components.
 
@@ -117,6 +115,3 @@ The project is designed as a lightweight visualization tool and a foundation for
 
 ###  Author: Michal Švrček
 Developed as part of data visualization and testing for our radars.
----
-
- 
