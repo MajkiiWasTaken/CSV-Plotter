@@ -14,7 +14,7 @@ The project focuses on simple and interactive data visualization in a desktop en
 
 ---
 
-### Radar Graphs Preview
+### CSV Plotter Preview
 
 <img width="1225" height="725" alt="image" src="https://github.com/user-attachments/assets/3f3a8ad1-9d56-403f-9708-9129ffc67770" />
 
