@@ -1,4 +1,4 @@
-#  Radar Graphs
+# CSV Plotter
 
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Framework](https://img.shields.io/badge/.NET-8.0-purple)
@@ -8,7 +8,7 @@
 
 ###  Overview
 
-**Radar Graphs** is a WPF desktop application built in **C# (.NET 8)** for visualizing data using different chart types such as **bar charts** and **pie charts**.
+**CSV Plotter** is a WPF desktop application built in **C# (.NET 8)** for visualizing data using different chart types such as **bar charts** and **pie charts**.
 
 The project focuses on simple and interactive data visualization in a desktop environment, with a modular structure allowing easy expansion with additional chart types.
 
