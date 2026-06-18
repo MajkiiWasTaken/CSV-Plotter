@@ -1,4 +1,4 @@
-#  RadarGraphs
+#  Radar Graphs
 
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Framework](https://img.shields.io/badge/.NET-8.0-purple)
@@ -8,9 +8,15 @@
 
 ###  Overview
 
-**RadarGraphs** is a WPF desktop application built in **C# (.NET 8)** for visualizing data using different chart types such as **bar charts** and **pie charts**.
+**Radar Graphs** is a WPF desktop application built in **C# (.NET 8)** for visualizing data using different chart types such as **bar charts** and **pie charts**.
 
 The project focuses on simple and interactive data visualization in a desktop environment, with a modular structure allowing easy expansion with additional chart types.
+
+---
+
+### Radar Graphs Preview
+
+<img width="1225" height="725" alt="image" src="https://github.com/user-attachments/assets/3f3a8ad1-9d56-403f-9708-9129ffc67770" />
 
 ---
 
